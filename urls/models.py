@@ -24,3 +24,15 @@ class ShortURL(models.Model):
 
     def __str__(self):
         return f"{self.short_code} -> {self.original_url}"
+
+
+class ClickEvent(models.Model):
+    url = models.ForeignKey(ShortURL, on_delete=models.CASCADE, related_name="clicks")
+    timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
+    referrer = models.CharField(max_length=2048, blank=True)
+    user_agent = models.CharField(max_length=512, blank=True)
+    device = models.CharField(max_length=20, blank=True)
+    ip_hash = models.CharField(max_length=64, blank=True)  # hashed for privacy
+
+    def __str__(self):
+        return f"click on {self.url.short_code} at {self.timestamp}"
