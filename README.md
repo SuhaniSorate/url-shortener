@@ -16,6 +16,7 @@ A URL shortener built with **Python, Django and Django REST Framework**. It crea
 - Input and URL validation
 - Simple responsive web interface
 - Automated tests (13)
+- Admin dashboard (Django admin at `/admin`) to browse users, links and click events
 
 ## Tech stack
 
