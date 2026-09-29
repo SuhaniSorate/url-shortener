@@ -1,7 +1,13 @@
 from django.urls import path
-from .views import ShortURLCreateView, AnalyticsView
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from .views import (RegisterView, ShortURLListCreateView,
+                    ShortURLDetailView, AnalyticsView)
 
 urlpatterns = [
-    path("urls", ShortURLCreateView.as_view()),
+    path("register", RegisterView.as_view()),
+    path("login", TokenObtainPairView.as_view()),
+    path("token/refresh", TokenRefreshView.as_view()),
+    path("urls", ShortURLListCreateView.as_view()),
+    path("urls/<int:pk>", ShortURLDetailView.as_view()),
     path("urls/<int:pk>/analytics", AnalyticsView.as_view()),
 ]

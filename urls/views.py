@@ -5,15 +5,34 @@ from django.http import HttpResponseRedirect, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import generics
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from .models import ShortURL, ClickEvent
-from .serializers import ShortURLSerializer
+from .serializers import ShortURLSerializer, RegisterSerializer
 
 
-class ShortURLCreateView(generics.CreateAPIView):
-    queryset = ShortURL.objects.all()
+class RegisterView(generics.CreateAPIView):
+    serializer_class = RegisterSerializer
+    permission_classes = [AllowAny]
+
+
+class ShortURLListCreateView(generics.ListCreateAPIView):
     serializer_class = ShortURLSerializer
+
+    def get_queryset(self):
+        # Only the logged-in user's own links
+        return ShortURL.objects.filter(owner=self.request.user).order_by("-created_at")
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
+
+
+class ShortURLDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = ShortURLSerializer
+
+    def get_queryset(self):
+        return ShortURL.objects.filter(owner=self.request.user)
 
 
 def detect_device(user_agent):
@@ -53,7 +72,7 @@ def redirect_view(request, short_code):
 
 class AnalyticsView(APIView):
     def get(self, request, pk):
-        link = get_object_or_404(ShortURL, pk=pk)
+        link = get_object_or_404(ShortURL, pk=pk, owner=request.user)
         clicks = link.clicks.all()
 
         by_day = (clicks.annotate(day=TruncDate("timestamp"))
