@@ -1,4 +1,5 @@
 import hashlib
+from django.core.cache import cache
 from django.db.models import Count
 from django.db.models.functions import TruncDate
 from django.http import HttpResponseRedirect, HttpResponse
@@ -7,6 +8,7 @@ from django.utils import timezone
 from rest_framework import generics
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from .models import ShortURL, ClickEvent
 from .serializers import ShortURLSerializer, RegisterSerializer
@@ -20,8 +22,14 @@ class RegisterView(generics.CreateAPIView):
 class ShortURLListCreateView(generics.ListCreateAPIView):
     serializer_class = ShortURLSerializer
 
+    def get_throttles(self):
+        # Rate-limit only link creation, not listing
+        if self.request.method == "POST":
+            self.throttle_scope = "create"
+            return [ScopedRateThrottle()]
+        return []
+
     def get_queryset(self):
-        # Only the logged-in user's own links
         return ShortURL.objects.filter(owner=self.request.user).order_by("-created_at")
 
     def perform_create(self, serializer):
@@ -52,22 +60,34 @@ def get_client_ip(request):
 
 
 def redirect_view(request, short_code):
-    link = get_object_or_404(ShortURL, short_code=short_code)
-    if not link.is_active:
+    cache_key = f"short:{short_code}"
+    data = cache.get(cache_key)
+    if data is None:
+        # Cache miss: read from the database, then remember for 5 minutes
+        link = get_object_or_404(ShortURL, short_code=short_code)
+        data = {
+            "id": link.id,
+            "url": link.original_url,
+            "active": link.is_active,
+            "expires_at": link.expires_at,
+        }
+        cache.set(cache_key, data, 300)
+
+    if not data["active"]:
         return HttpResponse("This link has been disabled.", status=410)
-    if link.expires_at and link.expires_at < timezone.now():
+    if data["expires_at"] and data["expires_at"] < timezone.now():
         return HttpResponse("This link has expired.", status=410)
 
     user_agent = request.META.get("HTTP_USER_AGENT", "")[:512]
     ip_hash = hashlib.sha256(get_client_ip(request).encode()).hexdigest()
     ClickEvent.objects.create(
-        url=link,
+        url_id=data["id"],
         referrer=request.META.get("HTTP_REFERER", "")[:2048],
         user_agent=user_agent,
         device=detect_device(user_agent),
         ip_hash=ip_hash,
     )
-    return HttpResponseRedirect(link.original_url)
+    return HttpResponseRedirect(data["url"])
 
 
 class AnalyticsView(APIView):
