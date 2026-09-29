@@ -41,7 +41,10 @@
   <div id="authBox" class="card">
     <h3>Register / Login</h3>
     <input id="username" placeholder="Username">
-    <input id="password" type="password" placeholder="Password (min 6 chars)">
+        <span style="position:relative;display:inline-block">
+      <input id="password" type="password" placeholder="Password (min 6 chars)" style="padding-right:38px">
+      <span id="eye" onclick="togglePassword()" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);cursor:pointer;user-select:none">👁</span>
+    </span>
     <input id="email" placeholder="Email (for register)">
     <div>
       <button onclick="registerUser()">Register</button>
@@ -69,6 +72,13 @@
 let token = localStorage.getItem("token");
 
 function show(text) { document.getElementById("msg").textContent = text || ""; }
+
+function togglePassword() {
+  const p = document.getElementById("password");
+  const eye = document.getElementById("eye");
+  if (p.type === "password") { p.type = "text"; eye.textContent = "🙈"; }
+  else { p.type = "password"; eye.textContent = "👁"; }
+}
 
 function updateView() {
   document.getElementById("authBox").classList.toggle("hidden", !!token);
