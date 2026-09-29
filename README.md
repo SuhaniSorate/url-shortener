@@ -24,7 +24,7 @@ A URL shortener built with **Python, Django and Django REST Framework**. It crea
 | Backend | Python, Django, Django REST Framework |
 | Auth | JWT (djangorestframework-simplejwt) |
 | Database | SQLite (development) |
-| Cache | Django cache framework: in-memory by default, Redis when `REDIS_URL` is set |
+| Cache | Redis (falls back to Django's in-memory cache when REDIS_URL is not set) |
 | Frontend | HTML, CSS, JavaScript (single page) |
 
 ## Setup
@@ -43,12 +43,15 @@ Open http://127.0.0.1:8000 for the web interface.
 
 ### Optional: use Redis for caching
 
+Start Redis with Docker (or use any local Redis server), then point the app at it:
+
 ```bash
+docker compose up -d
 export REDIS_URL=redis://127.0.0.1:6379/1
 python manage.py runserver
 ```
 
-Without `REDIS_URL`, the app uses Django's in-memory cache. The caching code is the same for both.
+Without `REDIS_URL`, the app falls back to Django's in-memory cache. The caching code is the same for both.
 
 ### Run the tests
 
