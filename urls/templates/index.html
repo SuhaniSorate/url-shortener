@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>URL Shortener</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #f3f5fa; margin: 0; color: #1a2340; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 16px; }
+  h1 { margin: 16px 0 4px; }
+  .card { background: #fff; border-radius: 10px; padding: 16px; margin: 14px 0; box-shadow: 0 1px 4px rgba(0,0,0,.1); }
+  input { padding: 9px; margin: 4px 4px 4px 0; border: 1px solid #c5cbe0; border-radius: 6px; max-width: 100%; }
+  button { padding: 9px 14px; border: 0; border-radius: 6px; background: #2f6fd6; color: #fff; cursor: pointer; margin: 4px 4px 4px 0; }
+  button.gray { background: #6b7794; }
+  button.red { background: #d64545; }
+  .row { border-top: 1px solid #e3e7f2; padding: 10px 0; word-break: break-all; }
+  .muted { color: #6b7794; font-size: 13px; }
+  #msg { color: #b3261e; min-height: 20px; }
+  pre { background: #f3f5fa; padding: 8px; border-radius: 6px; overflow-x: auto; font-size: 13px; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>URL Shortener</h1>
+  <div class="muted">Base62 short links with analytics</div>
+  <div id="msg"></div>
+
+  <div id="authBox" class="card">
+    <h3>Register / Login</h3>
+    <input id="username" placeholder="Username">
+    <input id="password" type="password" placeholder="Password (min 6 chars)">
+    <input id="email" placeholder="Email (for register)">
+    <div>
+      <button onclick="registerUser()">Register</button>
+      <button class="gray" onclick="loginUser()">Login</button>
+    </div>
+  </div>
+
+  <div id="appBox" class="hidden">
+    <div class="card">
+      <h3>Create a short link</h3>
+      <input id="longUrl" placeholder="https://example.com/very/long/link" style="width:95%">
+      <input id="alias" placeholder="Custom alias (optional)">
+      <input id="expiry" type="datetime-local" title="Expiry (optional)">
+      <div><button onclick="createLink()">Shorten</button>
+      <button class="gray" onclick="logout()">Logout</button></div>
+    </div>
+    <div class="card">
+      <h3>Your links</h3>
+      <div id="links" class="muted">Loading...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+let token = localStorage.getItem("token");
+
+function show(text) { document.getElementById("msg").textContent = text || ""; }
+
+function updateView() {
+  document.getElementById("authBox").classList.toggle("hidden", !!token);
+  document.getElementById("appBox").classList.toggle("hidden", !token);
+  if (token) loadLinks();
+}
+
+async function api(path, method, body) {
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = "Bearer " + token;
+  const res = await fetch(path, { method: method || "GET", headers: headers,
+    body: body ? JSON.stringify(body) : undefined });
+  let data = null;
+  try { data = await res.json(); } catch (e) {}
+  if (res.status === 401 && token) { logout(); show("Session expired. Please log in again."); }
+  return { ok: res.ok, status: res.status, data: data };
+}
+
+function errorText(data) {
+  if (!data) return "Something went wrong";
+  return Object.values(data).flat().join(" ");
+}
+
+async function registerUser() {
+  const r = await api("/api/register", "POST", {
+    username: document.getElementById("username").value,
+    email: document.getElementById("email").value,
+    password: document.getElementById("password").value });
+  show(r.ok ? "Registered! Now click Login." : errorText(r.data));
+}
+
+async function loginUser() {
+  const r = await api("/api/login", "POST", {
+    username: document.getElementById("username").value,
+    password: document.getElementById("password").value });
+  if (r.ok) { token = r.data.access; localStorage.setItem("token", token); show(""); updateView(); }
+  else show("Login failed: check username and password.");
+}
+
+function logout() { token = null; localStorage.removeItem("token"); updateView(); }
+
+async function createLink() {
+  const body = { original_url: document.getElementById("longUrl").value };
+  const alias = document.getElementById("alias").value;
+  const expiry = document.getElementById("expiry").value;
+  if (alias) body.custom_alias = alias;
+  if (expiry) body.expires_at = new Date(expiry).toISOString();
+  const r = await api("/api/urls", "POST", body);
+  if (r.ok) {
+    show("");
+    document.getElementById("longUrl").value = "";
+    document.getElementById("alias").value = "";
+    document.getElementById("expiry").value = "";
+    loadLinks();
+  } else if (r.status === 429) show("Too many requests. Please wait a minute.");
+  else show(errorText(r.data));
+}
+
+async function loadLinks() {
+  const r = await api("/api/urls");
+  const box = document.getElementById("links");
+  if (!r.ok) { box.textContent = "Could not load links."; return; }
+  if (r.data.length === 0) { box.textContent = "No links yet. Create your first one above."; return; }
+  box.innerHTML = "";
+  r.data.forEach(function (link) {
+    const div = document.createElement("div");
+    div.className = "row";
+    const status = link.is_active ? "active" : "disabled";
+    div.innerHTML = "<b></b><div class='muted'></div>" +
+      "<div><button class='gray'>Analytics</button><button class='gray'>Copy</button>" +
+      "<button class='gray'>Enable/Disable</button><button class='red'>Delete</button></div>" +
+      "<pre class='hidden'></pre>";
+    div.querySelector("b").textContent = link.short_url + " (" + status + ")";
+    div.querySelector(".muted").textContent = link.original_url;
+    const btns = div.querySelectorAll("button");
+    btns[0].onclick = function () { showAnalytics(link.id, div.querySelector("pre")); };
+    btns[1].onclick = function () { navigator.clipboard.writeText(link.short_url); show("Copied!"); };
+    btns[2].onclick = function () { toggleLink(link); };
+    btns[3].onclick = function () { deleteLink(link.id); };
+    box.appendChild(div);
+  });
+}
+
+async function showAnalytics(id, pre) {
+  const r = await api("/api/urls/" + id + "/analytics");
+  pre.textContent = JSON.stringify(r.data, null, 2);
+  pre.classList.toggle("hidden");
+}
+
+async function toggleLink(link) {
+  await api("/api/urls/" + link.id, "PUT", { original_url: link.original_url, is_active: !link.is_active });
+  loadLinks();
+}
+
+async function deleteLink(id) {
+  if (!confirm("Delete this link?")) return;
+  await api("/api/urls/" + id, "DELETE");
+  loadLinks();
+}
+
+updateView();
+</script>
+</body>
+</html>
