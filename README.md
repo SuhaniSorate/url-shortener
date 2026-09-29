@@ -60,6 +60,15 @@ Without `REDIS_URL`, the app falls back to Django's in-memory cache. The caching
 python manage.py test
 ```
 
+### Admin dashboard
+
+Create an admin user, start the server and open `/admin`:
+
+```bash
+python manage.py createsuperuser
+python manage.py runserver
+```
+
 ## How it works
 
 1. A logged-in user submits a long URL (optionally with an alias and expiry).
