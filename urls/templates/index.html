@@ -143,15 +143,15 @@ async function loadLinks() {
       "<pre class='hidden'></pre>";
     const b = div.querySelector("b");
     const a = document.createElement("a");
-    a.href = link.short_url;
+    a.href = location.origin + "/" + link.short_code;
     a.target = "_blank";
-    a.textContent = link.short_url;
+    a.textContent = location.origin + "/" + link.short_code;
     b.appendChild(a);
     b.appendChild(document.createTextNode(" (" + status + ")"));
     div.querySelector(".muted").textContent = link.original_url;
     const btns = div.querySelectorAll("button");
     btns[0].onclick = function () { showAnalytics(link.id, div.querySelector("pre")); };
-    btns[1].onclick = function () { navigator.clipboard.writeText(link.short_url); show("Copied!"); };
+    btns[1].onclick = function () { navigator.clipboard.writeText(location.origin + "/" + link.short_code); show("Copied!"); };
     btns[2].onclick = function () { toggleLink(link); };
     btns[3].onclick = function () { deleteLink(link.id); };
     box.appendChild(div);
@@ -161,7 +161,7 @@ async function loadLinks() {
 async function showAnalytics(id, pre) {
   const r = await api("/api/urls/" + id + "/analytics");
   pre.textContent = JSON.stringify(r.data, null, 2);
-  pre.classList.toggle("hidden");
+  pre.classList.remove("hidden");
 }
 
 async function toggleLink(link) {
